@@ -1,0 +1,117 @@
+name: Publish MCP Server to npm
+
+on:
+  push:
+    branches:
+      - main
+      - canary
+    tags:
+      - "v[0-9]+.[0-9]+.[0-9]+"
+      - "v[0-9]+.[0-9]+.[0-9]+-canary.[0-9]+"
+  workflow_dispatch:
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write # Required for npm provenance
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build MCP server
+        run: npm run build
+
+      - name: Get package version
+        id: package_version
+        run: echo "version=$(node -p "require('./package.json').version")" >> $GITHUB_OUTPUT
+
+      - name: Check version type
+        id: check_version
+        run: |
+          VERSION=${{ steps.package_version.outputs.version }}
+          if [[ "$VERSION" =~ -canary\. ]]; then
+            echo "tag=canary" >> $GITHUB_OUTPUT
+            echo "is_prerelease=true" >> $GITHUB_OUTPUT
+          else
+            echo "tag=latest" >> $GITHUB_OUTPUT
+            echo "is_prerelease=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public --tag ${{ steps.check_version.outputs.tag }}
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/')
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ github.ref_name }}
+          release_name: ${{ steps.check_version.outputs.is_prerelease == 'true' && format('Canary Release {0}', github.ref_name) || format('Release {0}', github.ref_name) }}
+          body: |
+            ## Maxclicks MCP Server v${{ steps.package_version.outputs.version }}
+
+            ${{ steps.check_version.outputs.is_prerelease == 'true' && '⚠️ **This is a pre-release canary version for testing purposes.**' || '' }}
+
+            ### Installation
+            ```bash
+            npx -y maxclicks-mcp
+            ```
+
+            ### Or install globally
+            ```bash
+            npm install -g maxclicks-mcp@${{ steps.check_version.outputs.tag }}
+            ```
+
+            ### Quick Start
+            ```bash
+            env MAXCLICKS_API_KEY=your-api-key npx -y maxclicks-mcp
+            ```
+
+            ### Claude Desktop Setup
+            ```json
+            {
+              "mcpServers": {
+                "maxclicks": {
+                  "command": "npx",
+                  "args": ["-y", "maxclicks-mcp"],
+                  "env": {
+                    "MAXCLICKS_API_KEY": "your-api-key-here"
+                  }
+                }
+              }
+            }
+            ```
+
+            See [README.md](https://github.com/${{ github.repository }}/blob/${{ github.ref_name }}/README.md) for full documentation.
+          draft: false
+          prerelease: ${{ steps.check_version.outputs.is_prerelease == 'true' }}
+
+      - name: Notify success
+        if: success()
+        run: |
+          echo "✅ Successfully published maxclicks-mcp@${{ steps.package_version.outputs.version }}"
+          echo "📦 Tag: ${{ steps.check_version.outputs.tag }}"
+          echo "🚀 Install: npx -y maxclicks-mcp"
+
+      - name: Notify failure
+        if: failure()
+        run: |
+          echo "❌ Failed to publish MCP server to npm"
+          exit 1

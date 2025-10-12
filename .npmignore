@@ -1,0 +1,27 @@
+# .npmignore
+# Don't publish these files to npm
+
+# Source files (only publish build)
+*.ts
+!*.d.ts
+tsconfig.json
+
+# Development files
+.gitignore
+.vscode/
+.idea/
+
+# CI/CD
+.github/
+
+# Documentation (except README)
+docs/
+
+# Tests
+test/
+tests/
+*.test.ts
+*.spec.ts
+
+# Environment
+.env*
