@@ -53,13 +53,16 @@ function startInspector(apiKey) {
         [
             '@modelcontextprotocol/inspector',
             'node',
-            'build/index.js',
-            '--key',
-            apiKey,
+            'build/server.js',
         ],
         {
             stdio: 'inherit',
             shell: true,
+            env: {
+                ...process.env,
+                MAXCLICKS_API_KEY: apiKey,
+                TRANSPORT: 'stdio',
+            },
         }
     );
 

@@ -3,10 +3,17 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-COPY package*.json tsconfig.json ./
-RUN npm ci
+# Copy package files and local SDK tarball
+COPY maxclicks-mcp/package*.json maxclicks-mcp/tsconfig.json ./
+COPY maxclicks-mcp/maxclicks-node-sdk-1.0.0.tgz ./
 
-COPY index.ts server.ts ./
+# Install dependencies
+RUN npm install --production=false
+
+# Copy source files
+COPY maxclicks-mcp/src ./src
+
+# Build and prune dev dependencies
 RUN npm run build && npm prune --production
 
 FROM node:22-alpine

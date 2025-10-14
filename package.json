@@ -4,7 +4,7 @@
   "description": "Model Context Protocol server for Maxclicks API - Enable AI assistants to manage contacts, events, objects, and templates",
   "type": "module",
   "bin": {
-    "maxclicks-mcp": "./build/index.js"
+    "maxclicks-mcp": "./build/server.js"
   },
   "files": [
     "build/**/*",
@@ -25,11 +25,10 @@
     "customer-engagement"
   ],
   "scripts": {
-    "build": "tsc && chmod +x build/index.js build/server.js",
+    "build": "tsc && chmod +x build/server.js",
     "dev": "tsc --watch",
     "inspector": "node scripts/inspector.js",
-    "start": "node build/index.js",
-    "start:server": "node build/server.js",
+    "start": "node build/server.js",
     "test": "echo 'No tests yet' && exit 0",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
@@ -56,6 +55,7 @@
     "@types/express": "^5.0.3",
     "cors": "^2.8.5",
     "express": "^5.1.0",
+    "fastmcp": "^3.19.1",
     "minimist": "^1.2.8",
     "zod": "^3.25.76"
   },
