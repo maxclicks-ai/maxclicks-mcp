@@ -1,19 +1,12 @@
 #!/usr/bin/env node
 import { FastMCP } from 'fastmcp';
-import { Maxclicks } from '@maxclicks/node-sdk';
 import { z } from 'zod';
 import minimist from 'minimist';
+import { Maxclicks } from 'maxclicks';
 
 const argv = minimist(process.argv.slice(2));
 const PORT = parseInt(argv.port || process.env.PORT || '7004', 10);
 const HOST = argv.host || process.env.HOST || '0.0.0.0';
-
-// OAuth configuration (if enabled via env vars)
-const OAUTH_ENABLED = process.env.OAUTH_ENABLED === 'true';
-const OAUTH_ISSUER = process.env.OAUTH_ISSUER;
-const OAUTH_AUTH_ENDPOINT = process.env.OAUTH_AUTH_ENDPOINT;
-const OAUTH_TOKEN_ENDPOINT = process.env.OAUTH_TOKEN_ENDPOINT;
-const OAUTH_JWKS_URI = process.env.OAUTH_JWKS_URI;
 
 // Session data must extend Record<string, unknown> for FastMCP compatibility
 interface SessionData extends Record<string, unknown> {
@@ -22,7 +15,6 @@ interface SessionData extends Record<string, unknown> {
   success?: boolean;
 }
 
-// Create FastMCP server with authentication and optional OAuth
 const server = new FastMCP<SessionData>({
   name: 'maxclicks-mcp',
   version: '1.0.0',
@@ -104,7 +96,8 @@ Use these tools to interact with the Maxclicks API for customer engagement.`,
       apiKey = pathMatch ? pathMatch[1] : undefined;
     }
 
-    if (!apiKey) {
+    // For stdio mode, use environment variable
+    if (!request) {
       apiKey = process.env.MAXCLICKS_API_KEY;
     }
 
@@ -144,30 +137,6 @@ Use these tools to interact with the Maxclicks API for customer engagement.`,
     }
   },
 
-  ...(OAUTH_ENABLED && OAUTH_ISSUER && OAUTH_AUTH_ENDPOINT && OAUTH_TOKEN_ENDPOINT && OAUTH_JWKS_URI
-    ? {
-        oauth: {
-          enabled: true,
-          authorizationServer: {
-            issuer: OAUTH_ISSUER,
-            authorizationEndpoint: OAUTH_AUTH_ENDPOINT,
-            tokenEndpoint: OAUTH_TOKEN_ENDPOINT,
-            jwksUri: OAUTH_JWKS_URI,
-            // OAuth 2.1 requires PKCE for all clients
-            responseTypesSupported: ['code'],
-            // Support both grant types as per MCP spec
-            grantTypesSupported: ['authorization_code', 'client_credentials'],
-            // PKCE is required for OAuth 2.1
-            codeChallengeMethodsSupported: ['S256'],
-          },
-          protectedResource: {
-            resource: 'mcp://maxclicks',
-            authorizationServers: [OAUTH_ISSUER],
-          },
-        },
-      }
-    : {}),
-
   // Health check configuration
   health: {
     enabled: true,
@@ -177,7 +146,6 @@ Use these tools to interact with the Maxclicks API for customer engagement.`,
   },
 });
 
-// Helper function to get Maxclicks client from session
 function getClient(session: SessionData | undefined): Maxclicks {
   // In stdio mode, session might not be populated, so fall back to env var
   const apiKey = session?.apiKey || process.env.MAXCLICKS_API_KEY;
@@ -409,7 +377,7 @@ server.addTool({
         targetType === 'contact'
           ? { type: 'contact' as const }
           : { type: 'object' as const, objectSchemaId: objectSchemaId! },
-      data: { key, label, type, description: description ?? null },
+      data: { key, label, type, description },
     });
 
     if (result.error) throw new Error(JSON.stringify(result.error));
@@ -448,7 +416,7 @@ server.addTool({
           key: op.key,
           label: op.label,
           type: op.type,
-          description: op.description ?? null,
+          description: op.description,
         },
       })),
     });
@@ -533,7 +501,7 @@ server.addTool({
       schema: {
         slug: args.slug,
         ...(args.name !== undefined && { name: args.name }),
-        description: args.description ?? null,
+        ...(args.description !== undefined && { description: args.description }),
         ...(args.payloadJsonSchema !== undefined && { payloadJsonSchema: args.payloadJsonSchema }),
       },
     });
@@ -670,7 +638,7 @@ server.addTool({
       schema: {
         slug: args.slug,
         ...(args.name !== undefined && { name: args.name }),
-        description: args.description ?? null,
+        ...(args.description !== undefined && { description: args.description }),
       },
     });
 
@@ -920,16 +888,11 @@ if (transportType === 'stdio') {
   console.log(`  • SSE: ${serverUrl}/sse`);
   console.log(`  • Health: ${serverUrl}/health`);
 
-  if (OAUTH_ENABLED) {
-    console.log(`🔐 OAuth Discovery (RFC 8414):`);
-    console.log(`  • Authorization Server: ${serverUrl}/.well-known/oauth-authorization-server`);
-    console.log(`  • Protected Resource: ${serverUrl}/.well-known/oauth-protected-resource`);
-  }
-
-  console.log(`  1. Authorization: Bearer {token})`);
+  console.log(`\n🔐 Authentication Methods (in order of precedence):`);
+  console.log(`  1. Authorization: Bearer {token} (recommended)`);
   console.log(`  2. X-Maxclicks-API-Key: {key} (custom header)`);
-  console.log(`  3. URL path: /{api-key}/v1/mcp (non-standard)`);
-  console.log(`  4. MAXCLICKS_API_KEY env var (development only)`);
+  console.log(`  3. URL path: /{api-key}/v1/mcp (hosted endpoint)`);
+  console.log(`  4. MAXCLICKS_API_KEY env var (local development)`);
 
   console.log(`\n⚙️  Mode: ${process.env.STATELESS === 'true' ? 'Stateless' : 'Stateful'}`);
   console.log(`✅ Server ready!`);

@@ -27,7 +27,7 @@ if (envApiKey) {
     console.log('║  This will start the MCP Inspector for testing your server    ║');
     console.log('║                                                               ║');
     console.log('║  Get your API key from:                                       ║');
-    console.log('║    https://app.maxclicks.ai/settings/developers               ║');
+    console.log('║    https://app.maxclicks.ai/-/settings/developers             ║');
     console.log('║                                                               ║');
     console.log('║  Tip: You can also set MAXCLICKS_API_KEY env variable         ║');
     console.log('╚═══════════════════════════════════════════════════════════════╝');

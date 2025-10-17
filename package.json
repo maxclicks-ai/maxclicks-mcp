@@ -39,23 +39,23 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/maxclix/maxclicks-mcp.git"
+    "url": "https://github.com/maxclicks-ai/maxclicks-mcp.git"
   },
   "bugs": {
-    "url": "https://github.com/maxclix/maxclicks-mcp/issues"
+    "url": "https://github.com/maxclicks-ai/maxclicks-mcp/issues"
   },
-  "homepage": "https://github.com/maxclix/maxclicks-mcp#readme",
+  "homepage": "https://github.com/maxclicks-ai/maxclicks-mcp#readme",
   "engines": {
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@maxclicks/node-sdk": "^1.0.0",
     "@modelcontextprotocol/sdk": "^1.19.1",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
     "cors": "^2.8.5",
     "express": "^5.1.0",
     "fastmcp": "^3.19.1",
+    "maxclicks": "^1.0.0-canary.0",
     "minimist": "^1.2.8",
     "zod": "^3.25.76"
   },
