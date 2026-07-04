@@ -1,0 +1,82 @@
+{
+  "version": 3,
+  "summary": "maxclicks exposes an HTTP API and an MCP server for managing contacts, objects, events, email, webhooks, and automation.",
+  "credentials": {
+    "maxclicks_api_key": {
+      "type": "api_key",
+      "label": "maxclicks API key",
+      "generateUrl": "https://app.maxclicks.ai/-/settings/developers",
+      "setup": "Create an API key in your space settings and send it as an Authorization bearer token. Keys are scoped to a single space."
+    }
+  },
+  "surfaces": [
+    {
+      "slug": "maxclicks-api",
+      "name": "maxclicks API",
+      "type": "http",
+      "docs": "https://docs.maxclicks.ai",
+      "spec": "https://maxclicks.ai/openapi.json",
+      "url": "https://api.maxclicks.ai/v1",
+      "basis": {
+        "via": "declared",
+        "source": "https://maxclicks.ai/.well-known/integrations.json"
+      },
+      "auth": {
+        "status": "required",
+        "entries": [
+          {
+            "use": [
+              {
+                "id": "maxclicks_api_key",
+                "mechanics": {
+                  "source": "http",
+                  "in": "header",
+                  "headerName": "Authorization",
+                  "scheme": "Bearer"
+                }
+              }
+            ],
+            "basis": {
+              "via": "declared",
+              "source": "https://maxclicks.ai/.well-known/integrations.json"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "slug": "maxclicks-mcp-server",
+      "name": "maxclicks MCP server",
+      "type": "mcp",
+      "docs": "https://docs.maxclicks.ai/mcp",
+      "url": "https://mcp.maxclicks.ai/mcp",
+      "transports": ["streamable-http"],
+      "basis": {
+        "via": "declared",
+        "source": "https://maxclicks.ai/.well-known/integrations.json"
+      },
+      "auth": {
+        "status": "required",
+        "entries": [
+          {
+            "use": [
+              {
+                "id": "maxclicks_api_key",
+                "mechanics": {
+                  "source": "http",
+                  "in": "header",
+                  "headerName": "Authorization",
+                  "scheme": "Bearer"
+                }
+              }
+            ],
+            "basis": {
+              "via": "declared",
+              "source": "https://maxclicks.ai/.well-known/integrations.json"
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

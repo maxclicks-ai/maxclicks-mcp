@@ -3,9 +3,10 @@ FROM node:22-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files and local SDK tarball
+# Copy package files and the local maxclicks SDK tarball (see `npm run sdk:link`).
+# Once the SDK is published to npm, drop the tarball and depend on `maxclicks@^1.0.0`.
 COPY maxclicks-mcp/package*.json maxclicks-mcp/tsconfig.json ./
-COPY maxclicks-mcp/maxclicks-node-sdk-1.0.0.tgz ./
+COPY maxclicks-mcp/maxclicks-1.0.0.tgz ./
 
 # Install dependencies
 RUN npm install --production=false
@@ -35,5 +36,6 @@ EXPOSE 7004
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
     CMD curl -f http://localhost:7004/health || exit 1
 
+ENV TRANSPORT=http
 ENTRYPOINT ["dumb-init", "--"]
-CMD ["node", "build/server.js"]
+CMD ["node", "build/index.js"]

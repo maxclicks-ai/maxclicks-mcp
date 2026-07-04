@@ -1,77 +1,30 @@
-# Maxclicks MCP Server
+# maxclicks MCP Server
 
-[![npm version](https://badge.fury.io/js/maxclicks-mcp.svg)](https://www.npmjs.com/package/maxclicks-mcp)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A [Model Context Protocol](https://modelcontextprotocol.io) server that connects AI assistants (Claude, ChatGPT, etc.) to the Maxclicks API for CRM, events, and customer engagement.
+The official [Model Context Protocol](https://modelcontextprotocol.io) server for the [maxclicks](https://maxclicks.ai) Public API. It lets any MCP client (Claude, Cursor, and others) manage contacts and objects, fire events, send templates, manage webhooks, and trigger workflows in your maxclicks space.
 
-## Quick Start (Recommended)
+> This server is a from-scratch rewrite over the real maxclicks Public API v1, built on the official `maxclicks` Node SDK. See [docs/DESIGN.md](docs/DESIGN.md) for the architecture, the tool catalog, the authentication phases, and how it is published to integrations.sh.
 
-**Use our hosted MCP server** - no installation required:
+## Connect
 
-Get your API key from [maxclicks.ai/app/api-keys](https://maxclicks.ai/app/api-keys), then add to your AI client:
+### Hosted (remote)
 
-```json
-{
-  "mcpServers": {
-    "maxclicks": {
-      "url": "https://mcp.maxclicks.ai/{YOUR_API_KEY}/v1/mcp"
-    }
-  }
-}
+Streamable HTTP endpoint: `https://mcp.maxclicks.ai/mcp`. Authenticate with a maxclicks API key sent as a bearer token:
+
+```
+Authorization: Bearer <your_api_key>
 ```
 
-## Self-Hosted Option
+Create a key at `https://app.maxclicks.ai/-/settings/developers`. Keys are scoped to one space.
 
-If you prefer to run your own server:
+### Local (stdio)
 
 ```bash
 npx -y maxclicks-mcp
 ```
 
-Or install globally:
-
-```bash
-npm install -g maxclicks-mcp
-maxclicks-mcp
-```
-
-## Available Tools (26 total)
-
-**Contacts (6):** create, list, get, update, delete, batch-create  
-**Attributes (4):** create, list, batch-create, delete  
-**Events (5):** create-schema, list-schemas, get-schema, update-schema, track  
-**Objects (9):** create-schema, list-schemas, update-schema, create, list, get, update, delete, batch-create  
-**Templates (1):** send  
-**API Keys (1):** check
-
-## Integration Examples
-
-### Claude Desktop
-
-```json
-{
-  "mcpServers": {
-    "maxclicks": {
-      "url": "https://mcp.maxclicks.ai/{YOUR_API_KEY}/v1/mcp"
-    }
-  }
-}
-```
-
-### Cursor / VS Code / Windsurf
-
-```json
-{
-  "mcpServers": {
-    "maxclicks": {
-      "url": "https://mcp.maxclicks.ai/{YOUR_API_KEY}/v1/mcp"
-    }
-  }
-}
-```
-
-**Self-hosted alternative:**
+With your key in the environment (for Claude Desktop and other stdio clients):
 
 ```json
 {
@@ -79,134 +32,37 @@ maxclicks-mcp
     "maxclicks": {
       "command": "npx",
       "args": ["-y", "maxclicks-mcp"],
-      "env": {
-        "MAXCLICKS_API_KEY": "YOUR_API_KEY"
-      }
+      "env": { "MAXCLICKS_API_KEY": "<your_api_key>" }
     }
   }
 }
 ```
 
----
+## What it can do
 
-## For Developers
+Discovery is read only (the API does not create schemas or attributes): use `list_schemas` and `list_attributes` to learn your data model, then write.
 
-### Running Your Own Server
+- Meta: `whoami`
+- Schemas and attributes (read): `list_schemas`, `get_schema`, `list_attributes`, `get_attribute`
+- Records: `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `get_contact_audit_trail`
+- Events: `fire_event`, `fire_events_batch`, `get_event`
+- Email: `send_template`
+- Suppressions (admin key): `create_suppression`, `delete_suppression`
+- Webhooks: `list_webhooks`, `get_webhook`, `create_webhook`, `update_webhook`, `delete_webhook`, `rotate_webhook_secret`
+- Workflows: `trigger_workflow`
 
-**Environment Variables:**
-- `MAXCLICKS_API_KEY` - Your API key (required)
-- `PORT` - Server port (default: 7004)
-- `HOST` - Server host (default: 0.0.0.0)
-- `TRANSPORT` - Mode: `stdio` or `httpStream` (default: httpStream)
-
-**Start HTTP server:**
-```bash
-MAXCLICKS_API_KEY=your-key npm run start:server
-```
-
-**Start stdio mode:**
-```bash
-TRANSPORT=stdio MAXCLICKS_API_KEY=your-key npx maxclicks-mcp
-```
-
-### API Endpoints
-
-When running as HTTP server (default):
-
-- `POST /mcp` - MCP endpoint
-- `POST /sse` - Server-Sent Events
-- `POST /{api-key}/v1/mcp` - URL-based auth
-- `GET /health` - Health check
-
-**Authentication methods (in priority order):**
-1. `Authorization: Bearer {token}` (recommended)
-2. `X-Maxclicks-API-Key: {key}` header
-3. URL path: `/{api-key}/v1/mcp`
-4. `MAXCLICKS_API_KEY` env var
-
-### Development
+## Development
 
 ```bash
-git clone https://github.com/maxclix/maxclicks-mcp.git
-cd maxclicks-mcp
 npm install
-npm run build
-
-# Test with inspector (stdio mode)
-npm run inspector
+npm run check   # type check
+npm run build   # compile to build/
+npm run start   # run the streamable-http server
+npm run inspector  # open the MCP inspector
 ```
 
-**MCP Inspector Usage:**
-- When prompted, enter your API key
-- In the inspector UI, use **"Skip OAuth"** or manual connection (not the OAuth flow)
-- The server runs in stdio mode and uses API key authentication from environment variables
-- OAuth is only available when running in HTTP mode with proper configuration
-
-**Testing OAuth 2.1 (Advanced):**
-
-1. Start the OAuth-enabled server:
-```bash
-npm run start:oauth
-```
-
-2. Test OAuth discovery endpoints:
-```bash
-# Quick test script
-./test-oauth.sh
-
-# Or manually
-curl http://localhost:7004/.well-known/oauth-authorization-server | jq
-```
-
-3. Test with MCP Inspector:
-```bash
-npm run inspector:oauth  # Shows instructions
-# Then manually: npx @modelcontextprotocol/inspector
-# Add HTTP server: http://localhost:7004/mcp
-# Inspector will auto-discover OAuth endpoints
-```
-
-**OAuth Endpoints:**
-- Authorization Server: `http://localhost:7004/.well-known/oauth-authorization-server`
-- Protected Resource: `http://localhost:7004/.well-known/oauth-protected-resource`
-- Supports: OAuth 2.1 with PKCE (S256), authorization_code & client_credentials grants
-
-### Docker
-
-```bash
-docker build -t maxclicks-mcp .
-docker run -p 7004:7004 -e MAXCLICKS_API_KEY=your-key maxclicks-mcp
-```
-
-Or use docker-compose:
-
-```yaml
-services:
-  maxclicks-mcp:
-    image: maxclicks-mcp
-    ports:
-      - "7004:7004"
-    environment:
-      - MAXCLICKS_API_KEY=your-key
-```
-
----
-## Links
-
-- **Maxclicks:** [maxclicks.ai](https://maxclicks.ai)
-- **Get API Key:** [maxclicks.ai/app/api-keys](https://app.maxclicks.ai/settings/devlopers)
-- **GitHub:** [github.com/maxclix/maxclicks-mcp](https://github.com/maxclix/maxclicks-mcp)
-- **NPM:** [npmjs.com/package/maxclicks-mcp](https://www.npmjs.com/package/maxclicks-mcp)
-
-## Support
-
-- **Issues:** [github.com/maxclix/maxclicks-mcp/issues](https://github.com/maxclix/maxclicks-mcp/issues)
-- **Email:** support@maxclicks.ai
+The server depends on the `maxclicks` SDK. Until it is published to npm, link it locally (`npm pack` in `maxclicks-node` and install the tarball, or a `file:` dependency).
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) file
-
----
-
-Made with ❤️ by the Maxclicks team
+MIT

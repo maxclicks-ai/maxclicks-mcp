@@ -1,11 +1,12 @@
 {
   "name": "maxclicks-mcp",
-  "version": "1.0.0",
-  "description": "Model Context Protocol server for Maxclicks API - Enable AI assistants to manage contacts, events, objects, and templates",
+  "version": "2.0.0",
+  "description": "The official Model Context Protocol server for the maxclicks Public API. Manage contacts, objects, events, email, webhooks, and workflows from any MCP client.",
   "type": "module",
   "bin": {
-    "maxclicks-mcp": "./build/server.js"
+    "maxclicks-mcp": "./build/index.js"
   },
+  "main": "./build/index.js",
   "files": [
     "build/**/*",
     "README.md",
@@ -20,22 +21,25 @@
     "cursor",
     "crm",
     "contacts",
-    "api",
+    "email",
     "automation",
-    "customer-engagement"
+    "api"
   ],
   "scripts": {
-    "build": "tsc && chmod +x build/server.js",
+    "build": "tsc && chmod +x build/index.js",
     "dev": "tsc --watch",
+    "start": "node build/index.js",
+    "sdk:link": "cd ../maxclicks-node && npm run build && npm pack --pack-destination ../maxclicks-mcp",
     "inspector": "node scripts/inspector.js",
-    "start": "node build/server.js",
-    "test": "echo 'No tests yet' && exit 0",
+    "check": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
     "lint:fix": "eslint src/**/*.ts --fix",
     "format": "prettier --write \"src/**/*.ts\"",
-    "format:check": "prettier --check \"src/**/*.ts\""
+    "format:check": "prettier --check \"src/**/*.ts\"",
+    "test": "echo 'No tests yet' && exit 0",
+    "prepublishOnly": "npm run build"
   },
-  "author": "",
+  "author": "maxclicks",
   "license": "MIT",
   "repository": {
     "type": "git",
@@ -50,16 +54,15 @@
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.19.1",
-    "@types/cors": "^2.8.19",
-    "@types/express": "^5.0.3",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "fastmcp": "^3.19.1",
-    "maxclicks": "^1.0.0-canary.0",
+    "maxclicks": "file:maxclicks-1.0.0.tgz",
     "minimist": "^1.2.8",
     "zod": "^3.25.76"
   },
   "devDependencies": {
+    "@types/cors": "^2.8.19",
+    "@types/express": "^5.0.3",
     "@types/minimist": "^1.2.5",
     "@types/node": "^22.10.2",
     "@typescript-eslint/eslint-plugin": "^8.46.0",
