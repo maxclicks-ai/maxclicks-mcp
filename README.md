@@ -43,13 +43,18 @@ With your key in the environment (for Claude Desktop and other stdio clients):
 Discovery is read only (the API does not create schemas or attributes): use `list_schemas` and `list_attributes` to learn your data model, then write.
 
 - Meta: `whoami`
-- Schemas and attributes (read): `list_schemas`, `get_schema`, `list_attributes`, `get_attribute`
+- Schemas and attributes (read): `list_schemas`, `get_schema`, `list_attributes`
 - Records: `list_records`, `get_record`, `create_record`, `upsert_record`, `update_record`, `delete_record`, `get_contact_audit_trail`
-- Events: `fire_event`, `fire_events_batch`, `get_event`
-- Email: `send_template`
-- Suppressions (admin key): `create_suppression`, `delete_suppression`
+- Events: `fire_event`, `fire_events_batch`, `list_events`
+- Templates: `list_templates`, `get_template`, `send_template`
+- Broadcasts: `list_broadcasts`, `get_broadcast`, `update_broadcast`, `send_broadcast`, `list_broadcast_runs`, `get_broadcast_metrics`
+- Segments: `list_segments`, `get_segment`, `create_segment`, `delete_segment`, `count_segment`, `list_segment_contacts`
+- Sending setup (read): `list_domains`, `get_domain`, `list_senders`, `list_topics`, `get_topic`
+- Suppressions (admin key): `list_suppressions`, `create_suppression`, `delete_suppression`, `batch_create_suppressions`, `batch_delete_suppressions`
 - Webhooks: `list_webhooks`, `get_webhook`, `create_webhook`, `update_webhook`, `delete_webhook`, `rotate_webhook_secret`
-- Workflows: `trigger_workflow`
+- Workflows: `list_workflows`, `get_workflow`, `trigger_workflow`, `pause_workflow`, `unpause_workflow`, `list_workflow_runs`, `get_workflow_run`
+
+Authoring surfaces the Public API deliberately does not expose (schemas, attributes, templates, domains, senders, topics, imports, API keys) stay in the maxclicks app, so there are no tools for them here.
 
 ## Development
 

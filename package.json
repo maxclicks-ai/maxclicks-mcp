@@ -56,7 +56,7 @@
     "@modelcontextprotocol/sdk": "^1.19.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "maxclicks": "file:maxclicks-1.0.0.tgz",
+    "maxclicks": "file:maxclicks-1.1.0.tgz",
     "minimist": "^1.2.8",
     "zod": "^3.25.76"
   },
