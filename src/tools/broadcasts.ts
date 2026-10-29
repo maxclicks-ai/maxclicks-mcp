@@ -21,7 +21,7 @@ const scheduledForField = z
   .optional()
   .describe('ISO 8601 timestamp to send at. Null or omitted leaves the broadcast unscheduled.');
 
-export function registerBroadcastTools(server: McpServer, client: Maxclicks): void {
+export function registerBroadcastTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_broadcasts',
     {
@@ -29,7 +29,7 @@ export function registerBroadcastTools(server: McpServer, client: Maxclicks): vo
       description: "List the space's broadcasts, newest first. Paginated.",
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.broadcasts.list(args)))
+    (args) => runTool(async () => pageResult(await client().broadcasts.list(args)))
   );
 
   server.registerTool(
@@ -39,7 +39,7 @@ export function registerBroadcastTools(server: McpServer, client: Maxclicks): vo
       description: 'Fetch a broadcast by id.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.broadcasts.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().broadcasts.get(args.id)))
   );
 
   server.registerTool(
@@ -59,7 +59,7 @@ export function registerBroadcastTools(server: McpServer, client: Maxclicks): vo
     (args) =>
       runTool(async () => {
         const { id, ...params } = args;
-        return jsonResult(await client.broadcasts.update(id, params));
+        return jsonResult(await client().broadcasts.update(id, params));
       })
   );
 
@@ -80,7 +80,7 @@ export function registerBroadcastTools(server: McpServer, client: Maxclicks): vo
     (args) =>
       runTool(async () => {
         const { id, ...params } = args;
-        return jsonResult(await client.broadcasts.send(id, params));
+        return jsonResult(await client().broadcasts.send(id, params));
       })
   );
 
@@ -94,7 +94,7 @@ export function registerBroadcastTools(server: McpServer, client: Maxclicks): vo
     (args) =>
       runTool(async () =>
         pageResult(
-          await client.broadcasts.listRuns(args.id, { limit: args.limit, offset: args.offset })
+          await client().broadcasts.listRuns(args.id, { limit: args.limit, offset: args.offset })
         )
       )
   );
@@ -106,6 +106,6 @@ export function registerBroadcastTools(server: McpServer, client: Maxclicks): vo
       description: "Fetch a broadcast's aggregated email metrics.",
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.broadcasts.getMetrics(args.id)))
+    (args) => runTool(async () => jsonResult(await client().broadcasts.getMetrics(args.id)))
   );
 }

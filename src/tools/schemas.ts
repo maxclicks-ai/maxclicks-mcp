@@ -4,7 +4,7 @@ import type { Maxclicks } from 'maxclicks';
 import { jsonResult, pageResult, runTool } from './helpers.js';
 import { limitField, offsetField } from './shared.js';
 
-export function registerSchemaTools(server: McpServer, client: Maxclicks): void {
+export function registerSchemaTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_schemas',
     {
@@ -20,7 +20,7 @@ export function registerSchemaTools(server: McpServer, client: Maxclicks): void 
         offset: offsetField,
       },
     },
-    (args) => runTool(async () => pageResult(await client.schemas.list(args)))
+    (args) => runTool(async () => pageResult(await client().schemas.list(args)))
   );
 
   server.registerTool(
@@ -30,6 +30,6 @@ export function registerSchemaTools(server: McpServer, client: Maxclicks): void 
       description: 'Fetch a single schema by id or slug.',
       inputSchema: { schema: z.string().describe('The schema id or slug.') },
     },
-    (args) => runTool(async () => jsonResult(await client.schemas.get(args.schema)))
+    (args) => runTool(async () => jsonResult(await client().schemas.get(args.schema)))
   );
 }

@@ -7,22 +7,36 @@ import { limitField, schemaField } from './shared.js';
 const eventInputField = z
   .record(z.unknown())
   .describe(
-    'Flat event payload. Optional `eventId` (deduplication) and `occurredAt` (ISO date-time) plus any custom attribute keys defined on the event schema.'
+    'Flat event payload: optional `eventId` (your occurrence id; reuse it with identical input to retry safely), `occurredAt` (ISO date-time), `contactId` or `objectId` (the subject), plus any custom attribute keys defined on the event schema.'
   );
 
-export function registerEventTools(server: McpServer, client: Maxclicks): void {
+export function registerEventTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'fire_event',
     {
       title: 'Fire event',
       description:
-        'Fire a single trigger event of an event schema. Asynchronous: returns the accepted count, not a stored record.',
+        'Fire one event of an event schema. Acceptance is durable but is not readiness: the receipt carries the event `id` and `readinessAtAcceptance`. Read get_event_status with that `id` to learn when the event is ready.',
       inputSchema: { schema: schemaField, input: eventInputField },
     },
     (args) =>
       runTool(async () =>
-        jsonResult(await client.events.fire(args.schema, args.input as EventInput))
+        jsonResult(await client().events.fire(args.schema, args.input as EventInput))
       )
+  );
+
+  server.registerTool(
+    'get_event_status',
+    {
+      title: 'Get event status',
+      description:
+        "Read an accepted event's readiness by the `id` from its fire receipt: pending, ready, failed or outcome_unknown. failed and outcome_unknown are final for that occurrence.",
+      inputSchema: {
+        schema: schemaField,
+        id: z.string().describe('The event `id` from the fire receipt.'),
+      },
+    },
+    (args) => runTool(async () => jsonResult(await client().events.status(args.schema, args.id)))
   );
 
   server.registerTool(
@@ -48,7 +62,7 @@ export function registerEventTools(server: McpServer, client: Maxclicks): void {
     (args) =>
       runTool(async () =>
         jsonResult(
-          await client.events.fireBatch(args.schema, args.events as EventInput[], {
+          await client().events.fireBatch(args.schema, args.events as EventInput[], {
             onError: args.onError,
           })
         )
@@ -75,6 +89,6 @@ export function registerEventTools(server: McpServer, client: Maxclicks): void {
         limit: limitField,
       },
     },
-    (args) => runTool(async () => pageResult(await client.events.list(args)))
+    (args) => runTool(async () => pageResult(await client().events.list(args)))
   );
 }

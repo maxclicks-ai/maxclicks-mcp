@@ -37,9 +37,7 @@ const conditionField = z
     z.object({ type: z.literal('segment'), segmentId: z.string() }),
     z.object({
       type: z.literal('custom filter'),
-      requirements: z
-        .string()
-        .describe('Natural-language description of the filter criteria.'),
+      requirements: z.string().describe('Natural-language description of the filter criteria.'),
     }),
   ])
   .describe(
@@ -48,7 +46,7 @@ const conditionField = z
 
 const idField = z.string().describe('The webhook id.');
 
-export function registerWebhookTools(server: McpServer, client: Maxclicks): void {
+export function registerWebhookTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_webhooks',
     {
@@ -56,7 +54,7 @@ export function registerWebhookTools(server: McpServer, client: Maxclicks): void
       description: 'List the space outgoing webhooks, newest first.',
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.webhooks.list(args)))
+    (args) => runTool(async () => pageResult(await client().webhooks.list(args)))
   );
 
   server.registerTool(
@@ -66,7 +64,7 @@ export function registerWebhookTools(server: McpServer, client: Maxclicks): void
       description: 'Fetch a webhook by id.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.webhooks.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().webhooks.get(args.id)))
   );
 
   server.registerTool(
@@ -87,7 +85,7 @@ export function registerWebhookTools(server: McpServer, client: Maxclicks): void
         condition: conditionField.optional(),
       },
     },
-    (args) => runTool(async () => jsonResult(await client.webhooks.create(args)))
+    (args) => runTool(async () => jsonResult(await client().webhooks.create(args)))
   );
 
   server.registerTool(
@@ -107,7 +105,7 @@ export function registerWebhookTools(server: McpServer, client: Maxclicks): void
     (args) =>
       runTool(async () => {
         const { id, ...params } = args;
-        return jsonResult(await client.webhooks.update(id, params));
+        return jsonResult(await client().webhooks.update(id, params));
       })
   );
 
@@ -118,7 +116,7 @@ export function registerWebhookTools(server: McpServer, client: Maxclicks): void
       description: 'Permanently delete a webhook.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.webhooks.delete(args.id)))
+    (args) => runTool(async () => jsonResult(await client().webhooks.delete(args.id)))
   );
 
   server.registerTool(
@@ -128,6 +126,6 @@ export function registerWebhookTools(server: McpServer, client: Maxclicks): void
       description: 'Rotate a webhook signing secret. The old secret stops verifying immediately.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.webhooks.rotateSecret(args.id)))
+    (args) => runTool(async () => jsonResult(await client().webhooks.rotateSecret(args.id)))
   );
 }

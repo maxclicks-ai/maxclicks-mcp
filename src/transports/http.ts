@@ -3,10 +3,18 @@ import cors from 'cors';
 import express, { type Request, type Response } from 'express';
 import { StreamableHTTPServerTransport } from '@modelcontextprotocol/sdk/server/streamableHttp.js';
 import { isInitializeRequest } from '@modelcontextprotocol/sdk/types.js';
-import { MaxclicksAuthenticationError } from 'maxclicks';
-import { extractApiKey, resolveClient } from '../auth.js';
+import { Maxclicks, MaxclicksAuthenticationError } from 'maxclicks';
+import { type Credential, extractBearerToken, verifyCredential } from '../auth.js';
+import { config } from '../config.js';
 import { buildServer } from '../server.js';
 import { SERVER_CARD } from '../serverCard.js';
+
+interface Session {
+  readonly transport: StreamableHTTPServerTransport;
+  readonly apiKeyId: string;
+  /** Replaced whenever the client presents a refreshed token, so tool calls never use an expired one. */
+  readonly connection: { client: Maxclicks; token: string };
+}
 
 function rpcError(message: string): {
   jsonrpc: '2.0';
@@ -17,8 +25,9 @@ function rpcError(message: string): {
 }
 
 /**
- * Runs the MCP server over streamable HTTP. Each session is authenticated once
- * (bearer API key or `/{key}/mcp` path) and bound to a `Maxclicks` client.
+ * Runs the MCP server over streamable HTTP as an OAuth 2.1 protected resource. Every request is authenticated
+ * (MCP authorization, "Token Handling"): a session is bound to the key or connection that opened it and is
+ * never itself a credential.
  */
 export async function startHttp(options: {
   port: number;
@@ -26,28 +35,108 @@ export async function startHttp(options: {
   baseUrl?: string;
 }): Promise<void> {
   const app = express();
-  app.use(cors({ exposedHeaders: ['mcp-session-id'] }));
+  app.use(cors({ exposedHeaders: ['mcp-session-id', 'WWW-Authenticate'] }));
   app.use(express.json({ limit: '10mb' }));
 
-  const transports = new Map<string, StreamableHTTPServerTransport>();
+  const sessions = new Map<string, Session>();
+  const publicUrl = new URL(config.publicUrl);
+  const resourceMetadataPath = `/.well-known/oauth-protected-resource${publicUrl.pathname}`;
+  const resourceMetadataUrl = new URL(resourceMetadataPath, publicUrl).href;
+  const authorizationServer = new URL(options.baseUrl ?? config.defaultApiBaseUrl).origin;
 
   app.get('/health', (_req, res) => {
     res.json({ status: 'ok' });
   });
-  app.get('/.well-known/mcp/server-card.json', (_req, res) => {
+
+  const sendServerCard = (_req: Request, res: Response): void => {
+    res.set('Cache-Control', `public, max-age=${config.metadataCacheSeconds}`);
     res.json(SERVER_CARD);
-  });
+  };
+  app.get('/.well-known/mcp/server-card.json', sendServerCard);
+  app.get('/mcp/server-card', sendServerCard);
+
+  // RFC 9728. The root document names the origin, which the authorization server accepts for this server too.
+  const sendResourceMetadata =
+    (resource: string) =>
+    (_req: Request, res: Response): void => {
+      res.set('Cache-Control', `public, max-age=${config.metadataCacheSeconds}`);
+      res.json({
+        resource,
+        authorization_servers: [authorizationServer],
+        scopes_supported: config.scopes.supported,
+        bearer_methods_supported: ['header'],
+        resource_name: 'maxclicks MCP server',
+        resource_documentation: config.documentationUrl,
+      });
+    };
+  app.get(resourceMetadataPath, sendResourceMetadata(config.publicUrl));
+  app.get('/.well-known/oauth-protected-resource', sendResourceMetadata(publicUrl.origin));
+
+  const challenge = (res: Response, error: { code: string; description: string } | null): void => {
+    const parameters = [
+      ...(error ? [`error="${error.code}"`, `error_description="${error.description}"`] : []),
+      `resource_metadata="${resourceMetadataUrl}"`,
+      `scope="${config.scopes.challenged.join(' ')}"`,
+    ];
+    res
+      .status(401)
+      .set('WWW-Authenticate', `Bearer ${parameters.join(', ')}`)
+      .json(rpcError(error?.description ?? 'Authorization required.'));
+  };
+
+  const authenticate = async (req: Request, res: Response): Promise<Credential | null> => {
+    const token = extractBearerToken(req);
+    if (!token) {
+      challenge(res, null);
+      return null;
+    }
+    try {
+      const credential = await verifyCredential(token, options.baseUrl);
+      if (credential.oauth !== null && credential.oauth.resource !== config.publicUrl) {
+        challenge(res, {
+          code: 'invalid_token',
+          description: 'This token was issued for a different resource.',
+        });
+        return null;
+      }
+      return credential;
+    } catch (error) {
+      if (error instanceof MaxclicksAuthenticationError) {
+        challenge(res, { code: 'invalid_token', description: 'The token is invalid or expired.' });
+        return null;
+      }
+      res.status(502).json(rpcError('Could not reach the maxclicks API.'));
+      return null;
+    }
+  };
+
+  /** A session answers only the credential that opened it; to anyone else it does not exist. */
+  const findSession = (req: Request, credential: Credential): Session | null => {
+    const sessionId = req.header('mcp-session-id');
+    const session = sessionId ? sessions.get(sessionId) : undefined;
+    if (!session || session.apiKeyId !== credential.apiKeyId) return null;
+    if (session.connection.token !== credential.token) {
+      session.connection.client = new Maxclicks({
+        apiKey: credential.token,
+        baseUrl: options.baseUrl,
+      });
+      session.connection.token = credential.token;
+    }
+    return session;
+  };
 
   const handlePost = async (req: Request, res: Response): Promise<void> => {
     try {
-      const sessionId = req.header('mcp-session-id');
-      if (sessionId) {
-        const existing = transports.get(sessionId);
-        if (!existing) {
+      const credential = await authenticate(req, res);
+      if (!credential) return;
+
+      if (req.header('mcp-session-id')) {
+        const session = findSession(req, credential);
+        if (!session) {
           res.status(404).json(rpcError('Unknown session.'));
           return;
         }
-        await existing.handleRequest(req, res, req.body);
+        await session.transport.handleRequest(req, res, req.body);
         return;
       }
 
@@ -58,33 +147,19 @@ export async function startHttp(options: {
         return;
       }
 
-      const apiKey = extractApiKey(req);
-      if (!apiKey) {
-        res.status(401).set('WWW-Authenticate', 'Bearer').json(rpcError('Missing API key.'));
-        return;
-      }
-
-      let client;
-      try {
-        client = await resolveClient(apiKey, options.baseUrl);
-      } catch (error) {
-        if (error instanceof MaxclicksAuthenticationError) {
-          res.status(401).set('WWW-Authenticate', 'Bearer').json(rpcError('Invalid API key.'));
-          return;
-        }
-        res.status(502).json(rpcError('Could not reach the maxclicks API.'));
-        return;
-      }
-
-      const server = buildServer(client);
+      const connection = {
+        client: new Maxclicks({ apiKey: credential.token, baseUrl: options.baseUrl }),
+        token: credential.token,
+      };
+      const server = buildServer(() => connection.client);
       const transport = new StreamableHTTPServerTransport({
         sessionIdGenerator: () => randomUUID(),
         onsessioninitialized: (id) => {
-          transports.set(id, transport);
+          sessions.set(id, { transport, apiKeyId: credential.apiKeyId, connection });
         },
       });
       transport.onclose = () => {
-        if (transport.sessionId) transports.delete(transport.sessionId);
+        if (transport.sessionId) sessions.delete(transport.sessionId);
       };
       await server.connect(transport);
       await transport.handleRequest(req, res, req.body);
@@ -95,21 +170,24 @@ export async function startHttp(options: {
   };
 
   const handleSession = async (req: Request, res: Response): Promise<void> => {
-    const sessionId = req.header('mcp-session-id');
-    const transport = sessionId ? transports.get(sessionId) : undefined;
-    if (!transport) {
-      res.status(404).end();
-      return;
+    try {
+      const credential = await authenticate(req, res);
+      if (!credential) return;
+      const session = findSession(req, credential);
+      if (!session) {
+        res.status(404).end();
+        return;
+      }
+      await session.transport.handleRequest(req, res);
+    } catch (error) {
+      console.error('MCP session error:', error);
+      if (!res.headersSent) res.status(500).end();
     }
-    await transport.handleRequest(req, res);
   };
 
   app.post('/mcp', handlePost);
   app.get('/mcp', handleSession);
   app.delete('/mcp', handleSession);
-  app.post('/:apiKey/mcp', handlePost);
-  app.get('/:apiKey/mcp', handleSession);
-  app.delete('/:apiKey/mcp', handleSession);
 
   await new Promise<void>((resolve) => {
     app.listen(options.port, options.host, () => {

@@ -26,10 +26,10 @@
     "api"
   ],
   "scripts": {
-    "build": "tsc && chmod +x build/index.js",
+    "build": "node scripts/build.mjs",
     "dev": "tsc --watch",
     "start": "node build/index.js",
-    "sdk:link": "cd ../maxclicks-node && npm run build && npm pack --pack-destination ../maxclicks-mcp",
+    "sdk:link": "node scripts/link-sdk.mjs",
     "inspector": "node scripts/inspector.js",
     "check": "tsc --noEmit",
     "lint": "eslint src/**/*.ts",
@@ -37,7 +37,8 @@
     "format": "prettier --write \"src/**/*.ts\"",
     "format:check": "prettier --check \"src/**/*.ts\"",
     "test": "echo 'No tests yet' && exit 0",
-    "prepublishOnly": "npm run build"
+    "prepack": "npm run build",
+    "prepublishOnly": "npm run check"
   },
   "author": "maxclicks",
   "license": "MIT",
@@ -56,7 +57,7 @@
     "@modelcontextprotocol/sdk": "^1.19.1",
     "cors": "^2.8.5",
     "express": "^5.1.0",
-    "maxclicks": "file:maxclicks-1.1.0.tgz",
+    "maxclicks": "^1.1.0",
     "minimist": "^1.2.8",
     "zod": "^3.25.76"
   },

@@ -29,7 +29,7 @@ const suppressionInputField = z
   })
   .describe('One suppression to create.');
 
-export function registerSuppressionTools(server: McpServer, client: Maxclicks): void {
+export function registerSuppressionTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_suppressions',
     {
@@ -38,7 +38,7 @@ export function registerSuppressionTools(server: McpServer, client: Maxclicks): 
         'List the space suppressions (do-not-contact list), newest first, optionally filtered to one email. Requires an admin API key.',
       inputSchema: { identifier: identifierFilterField, limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.suppressions.list(args)))
+    (args) => runTool(async () => pageResult(await client().suppressions.list(args)))
   );
 
   server.registerTool(
@@ -53,7 +53,7 @@ export function registerSuppressionTools(server: McpServer, client: Maxclicks): 
         notes: notesField,
       },
     },
-    (args) => runTool(async () => jsonResult(await client.suppressions.create(args)))
+    (args) => runTool(async () => jsonResult(await client().suppressions.create(args)))
   );
 
   server.registerTool(
@@ -64,7 +64,7 @@ export function registerSuppressionTools(server: McpServer, client: Maxclicks): 
         'Remove a suppression by id, re-allowing communication to that identifier. Requires an admin API key.',
       inputSchema: { id: z.string().describe('The suppression id.') },
     },
-    (args) => runTool(async () => jsonResult(await client.suppressions.delete(args.id)))
+    (args) => runTool(async () => jsonResult(await client().suppressions.delete(args.id)))
   );
 
   server.registerTool(
@@ -83,7 +83,7 @@ export function registerSuppressionTools(server: McpServer, client: Maxclicks): 
     },
     (args) =>
       runTool(async () =>
-        jsonResult(await client.suppressions.batchCreate(args.suppressions as SuppressionInput[]))
+        jsonResult(await client().suppressions.batchCreate(args.suppressions as SuppressionInput[]))
       )
   );
 
@@ -97,6 +97,6 @@ export function registerSuppressionTools(server: McpServer, client: Maxclicks): 
         ids: z.array(z.string()).min(1).max(100).describe('1 to 100 suppression ids to remove.'),
       },
     },
-    (args) => runTool(async () => jsonResult(await client.suppressions.batchDelete(args.ids)))
+    (args) => runTool(async () => jsonResult(await client().suppressions.batchDelete(args.ids)))
   );
 }

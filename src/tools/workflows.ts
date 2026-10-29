@@ -6,7 +6,7 @@ import { limitField, offsetField } from './shared.js';
 
 const idField = z.string().describe('The workflow id.');
 
-export function registerWorkflowTools(server: McpServer, client: Maxclicks): void {
+export function registerWorkflowTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'trigger_workflow',
     {
@@ -20,7 +20,7 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
     },
     (args) =>
       runTool(async () => {
-        await client.workflows.trigger(args.reference, args.body ?? {});
+        await client().workflows.trigger(args.reference, args.body ?? {});
         return textResult(`Workflow triggered for reference ${args.reference}.`);
       })
   );
@@ -32,7 +32,7 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
       description: 'List the space workflows. Paginated.',
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.workflows.list(args)))
+    (args) => runTool(async () => pageResult(await client().workflows.list(args)))
   );
 
   server.registerTool(
@@ -42,7 +42,7 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
       description: 'Fetch a workflow by id.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.workflows.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().workflows.get(args.id)))
   );
 
   server.registerTool(
@@ -53,7 +53,7 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
         'Pause a workflow so no new runs start; in-flight runs finish normally. Returns the updated workflow.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.workflows.pause(args.id)))
+    (args) => runTool(async () => jsonResult(await client().workflows.pause(args.id)))
   );
 
   server.registerTool(
@@ -63,7 +63,7 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
       description: 'Unpause a workflow so new runs can start again. Returns the updated workflow.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.workflows.unpause(args.id)))
+    (args) => runTool(async () => jsonResult(await client().workflows.unpause(args.id)))
   );
 
   server.registerTool(
@@ -76,7 +76,7 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
     (args) =>
       runTool(async () => {
         const { id, ...params } = args;
-        return pageResult(await client.workflows.listRuns(id, params));
+        return pageResult(await client().workflows.listRuns(id, params));
       })
   );
 
@@ -87,6 +87,6 @@ export function registerWorkflowTools(server: McpServer, client: Maxclicks): voi
       description: 'Fetch a single run of a workflow by run id.',
       inputSchema: { id: idField, runId: z.string().describe('The workflow run id.') },
     },
-    (args) => runTool(async () => jsonResult(await client.workflows.getRun(args.id, args.runId)))
+    (args) => runTool(async () => jsonResult(await client().workflows.getRun(args.id, args.runId)))
   );
 }

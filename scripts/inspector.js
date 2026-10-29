@@ -53,7 +53,7 @@ function startInspector(apiKey) {
         [
             '@modelcontextprotocol/inspector',
             'node',
-            'build/server.js',
+            'build/index.js',
         ],
         {
             stdio: 'inherit',

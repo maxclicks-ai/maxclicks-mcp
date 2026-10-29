@@ -11,8 +11,11 @@ Schemas and attributes are read only through this API. If a needed attribute doe
 
 Records are flat: set base fields and any custom attribute keys at the top level. Contacts identify by id, then userId, then email, then phone; objects by id, then externalId. Use upsert_record to create-or-update, or create_record to fail on an existing identifier.`;
 
-/** Builds a fully configured MCP server whose tools act as the given API client. */
-export function buildServer(client: Maxclicks): McpServer {
+/**
+ * Builds a fully configured MCP server. Its tools read the API client at call time, so a session can move to a
+ * refreshed OAuth token without being rebuilt.
+ */
+export function buildServer(client: () => Maxclicks): McpServer {
   const server = new McpServer(
     { name: SERVER_NAME, version: VERSION },
     { instructions: INSTRUCTIONS }

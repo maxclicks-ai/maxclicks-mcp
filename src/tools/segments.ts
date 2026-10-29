@@ -16,7 +16,7 @@ const descriptionField = z
 
 const contactSchemaField = z.string().describe('A contact schema id or slug the segment filters.');
 
-export function registerSegmentTools(server: McpServer, client: Maxclicks): void {
+export function registerSegmentTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_segments',
     {
@@ -24,7 +24,7 @@ export function registerSegmentTools(server: McpServer, client: Maxclicks): void
       description: 'List the space AI-defined contact filters (segments), newest first.',
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.segments.list(args)))
+    (args) => runTool(async () => pageResult(await client().segments.list(args)))
   );
 
   server.registerTool(
@@ -34,7 +34,7 @@ export function registerSegmentTools(server: McpServer, client: Maxclicks): void
       description: 'Fetch a segment by id.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.segments.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().segments.get(args.id)))
   );
 
   server.registerTool(
@@ -54,7 +54,7 @@ export function registerSegmentTools(server: McpServer, client: Maxclicks): void
           ),
       },
     },
-    (args) => runTool(async () => jsonResult(await client.segments.create(args)))
+    (args) => runTool(async () => jsonResult(await client().segments.create(args)))
   );
 
   server.registerTool(
@@ -65,7 +65,7 @@ export function registerSegmentTools(server: McpServer, client: Maxclicks): void
         'Permanently delete a segment. Rejected if it is in use as an audience, trigger, or condition, or referenced by other entities.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.segments.delete(args.id)))
+    (args) => runTool(async () => jsonResult(await client().segments.delete(args.id)))
   );
 
   server.registerTool(
@@ -76,7 +76,7 @@ export function registerSegmentTools(server: McpServer, client: Maxclicks): void
         "Return the segment live matching contact count and the schema's total contact count.",
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.segments.count(args.id)))
+    (args) => runTool(async () => jsonResult(await client().segments.count(args.id)))
   );
 
   server.registerTool(
@@ -90,7 +90,7 @@ export function registerSegmentTools(server: McpServer, client: Maxclicks): void
     (args) =>
       runTool(async () => {
         const { id, ...params } = args;
-        return pageResult(await client.segments.listContacts(id, params));
+        return pageResult(await client().segments.listContacts(id, params));
       })
   );
 }

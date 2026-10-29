@@ -1,6 +1,6 @@
 # maxclicks MCP Server: Design
 
-> Status: M1 implemented. The server is a from-scratch rewrite over the real Public API v1 (the previous server targeted an API that no longer exists). Phase 1 (API-key auth) streamable HTTP + stdio, all 25 tools over the `maxclicks` SDK, `/health`, and the served `server-card.json` are built and smoke tested. Hosting (discovery files on `maxclicks.ai`, prod Caddy) and Phase 2 (OAuth) are the remaining milestones (Section 7).
+> Status: M1 and M3 implemented. The server is a from-scratch rewrite over the real Public API v1 (the previous server targeted an API that no longer exists). Phase 1 (API-key auth) streamable HTTP + stdio, the tool layer over the `maxclicks` SDK, `/health`, the served `server-card.json`, and Phase 2 (OAuth 2.1 sign-in) are built and tested end to end against the local platform. Hosting (prod Caddy for `mcp.maxclicks.ai`) is the remaining milestone (Section 7).
 
 ## 1. Why a rewrite
 
@@ -29,22 +29,29 @@ Requirements and how we satisfy them:
 
 No backend change. The client presents a maxclicks API key; the server validates it and acts as that key.
 
-- Remote (streamable HTTP): read the key from, in order, the `Authorization: Bearer <key>` header, the `X-Maxclicks-API-Key` header, or a leading URL path segment (`/{key}/mcp`, for hosted setups that cannot set headers). Validate once per session with `sdk.me()`; reject with `401` on failure.
+- Remote (streamable HTTP): read the key from the `Authorization: Bearer <key>` header, or else the `X-Maxclicks-API-Key` header. A key in the URL path is not accepted: a URL reaches access logs and browser history, and a client that cannot set headers signs in with OAuth instead (Phase 2).
 - Local (stdio): read `MAXCLICKS_API_KEY` from the environment.
 
 Each session holds one `Maxclicks` SDK client built from its key. Every tool call runs through that client, so the caller's space and permissions are enforced by the API, not re-implemented here.
 
 This is exactly the pattern integrations.json advertises (`Authorization: Bearer`), so a Phase 1 server is immediately listable.
 
-### Phase 2 (fast follow): OAuth 2.1 for one-click connect
+### Phase 2: OAuth 2.1 for one-click connect (implemented)
 
-So users connect by logging in instead of pasting a key. We already run a standards OAuth 2.0 Authorization Server for integrations (`/integration/oauth/authorize`, `/integration/oauth/token`, PKCE per RFC 7636, refresh tokens, space-scoped sessions). The gaps for generic MCP clients are bounded:
+So users connect by signing in instead of pasting a key. The platform runs an OAuth 2.1 authorization server for the Public API and this server; its issuer is the API origin (`https://api.maxclicks.ai`). A client discovers everything from a `401`:
 
-1. Dynamic Client Registration (RFC 7591): MCP clients self register; today our AS keys clients by a pre-registered `integrationVendor.clientId`. Add a `/register` endpoint that mints ephemeral public clients.
-2. Discovery: serve `/.well-known/oauth-protected-resource` (RFC 9728) on `mcp.maxclicks.ai` pointing at the AS, and `/.well-known/oauth-authorization-server` (RFC 8414) on `api.maxclicks.ai` advertising authorize/token/register.
-3. Resource and audience: honor the MCP `resource` parameter and issue an MCP-scoped session token (equivalent in scope to an API key for a user in a space), rather than a full vendor `IntegrationSession`.
+1. Any request without a valid credential answers `401` with `WWW-Authenticate: Bearer resource_metadata="https://mcp.maxclicks.ai/.well-known/oauth-protected-resource/mcp", scope="read write"`.
+2. That document (RFC 9728, also served at the root with the origin as its resource) names the authorization server, whose metadata (RFC 8414) advertises Client ID Metadata Documents (`client_id_metadata_document_supported`) and lists dynamic client registration (RFC 7591), authorization with PKCE S256, token and revocation endpoints.
+3. The user signs in to maxclicks, picks one workspace and the permissions to grant, and the client receives an access token bound to this server's URL (RFC 8707) plus a rotating refresh token.
 
-When Phase 2 lands, flip `server-card.json` to include `authentication: { type: "oauth2", authorization_server: "https://api.maxclicks.ai" }` and add an `oauth2` credential to integrations.json. Phase 1 bearer keys keep working.
+What this server enforces:
+
+- Every request is authenticated, never just the first one of a session. A session is bound to the key or connection that opened it and refuses every other credential, so a session id is never a credential.
+- A credential is verified with `GET /v1/me`, at most once per minute and never past an OAuth token's expiry. An OAuth token whose `oauth.resource` is not `MCP_PUBLIC_URL` is refused with `error="invalid_token"`, so a token approved for the Public API does not work here.
+- Tool calls use the newest token the client presents, so a refreshed token needs no new session.
+- API keys keep working through the same header, and stdio still reads `MAXCLICKS_API_KEY`.
+
+Configuration: `MCP_PUBLIC_URL` is this server's canonical URL and must equal the platform's configured MCP resource exactly (`http://localhost:7004/mcp` locally). The authorization server is the origin of `MAXCLICKS_BASE_URL`.
 
 ## 4. Transports and hosting
 
@@ -61,33 +68,51 @@ The API is schema-scoped, so tool descriptions steer the model to discover the d
 Meta and discovery (read):
 - `whoami` (me)
 - `list_schemas` (filter by type), `get_schema`
-- `list_attributes` (per schema), `get_attribute`
+- `list_attributes` (per schema)
 
 Records (contacts and objects):
 - `list_records`, `get_record`
 - `create_record`, `upsert_record`, `update_record`, `delete_record`
+- `get_record_deletion`, `cancel_record_deletion`
 - `get_contact_audit_trail`
 
 Events:
-- `fire_event`, `fire_events_batch`, `get_event`
+- `fire_event`, `fire_events_batch`, `get_event_status`, `list_events`
 
-Email:
-- `send_template`
+Templates:
+- `list_templates`, `get_template`, `send_template`
+
+Broadcasts:
+- `list_broadcasts`, `get_broadcast`, `update_broadcast`, `send_broadcast`
+- `list_broadcast_runs`, `get_broadcast_metrics`
+
+Segments:
+- `list_segments`, `get_segment`, `create_segment`, `delete_segment`
+- `count_segment`, `list_segment_contacts`
+
+Sending setup (read):
+- `list_domains`, `get_domain`
+- `list_senders`
+- `list_topics`, `get_topic`
 
 Suppressions (admin key):
-- `create_suppression`, `delete_suppression`
+- `list_suppressions`, `create_suppression`, `delete_suppression`
+- `batch_create_suppressions`, `batch_delete_suppressions`
 
 Webhooks:
 - `list_webhooks`, `get_webhook`, `create_webhook`, `update_webhook`, `delete_webhook`, `rotate_webhook_secret`
 
 Workflows:
-- `trigger_workflow`
+- `list_workflows`, `get_workflow`, `trigger_workflow`
+- `pause_workflow`, `unpause_workflow`
+- `list_workflow_runs`, `get_workflow_run`
 
 Conventions:
 - Tool inputs are zod schemas mirroring the SDK's typed inputs. `schema` (id or slug) and record ids are explicit arguments.
 - Errors: SDK calls throw `MaxclicksError`; each tool catches and returns a structured MCP tool error carrying `status`, `code`, and `message` (never a raw stack).
 - Pagination: read tools accept `limit`/`offset` and return the page plus `hasMore`; large sweeps are the caller's job (one page per call) to keep responses bounded.
 - The public form and email redirect endpoints are intentionally omitted (they are browser flows, not agent actions).
+- Authoring surfaces the Public API does not expose (schema, attribute, template, domain, sender, and topic writes, plus bulk imports and API-key management) have no tools here. They live in the maxclicks app.
 
 ## 6. Repo layout (target)
 
@@ -102,7 +127,8 @@ maxclicks-mcp/
       stdio.ts            stdio transport
     tools/
       meta.ts schemas.ts attributes.ts records.ts events.ts
-      templates.ts suppressions.ts webhooks.ts workflows.ts
+      templates.ts broadcasts.ts segments.ts domains.ts senders.ts topics.ts
+      suppressions.ts webhooks.ts workflows.ts
       index.ts            register-all
     serverCard.ts         server-card.json payload
   discovery/              draft manifests for the maxclicks.ai domain (review copies)
@@ -118,10 +144,9 @@ The `maxclicks` SDK is a normal dependency. Until it is published to npm, dev us
 
 1. M1: Phase 1 server. Streamable HTTP + stdio, all tools over the SDK, bearer/env auth, `/health`, `/.well-known/mcp/server-card.json`. Publish `npx maxclicks-mcp`.
 2. M2: Discovery on the domain. Add `/.well-known/integrations.json`, `/openapi.json`, and confirm `/llms.txt` on `maxclicks.ai`; run the integrations.sh "Map integration surface" step to go live.
-3. M3: Phase 2 OAuth. DCR + RFC 9728/8414 + MCP-scoped tokens on the existing `oauthService`; flip the metadata to advertise OAuth.
+3. M3: Phase 2 OAuth. Done: the platform's authorization server (DCR, RFC 8414, PKCE S256, rotating refresh tokens) plus this server's RFC 9728 metadata, `401` challenge and per-request audience checks.
 
 ## 8. Open items
 
 - Which domain hosts `integrations.json`: `maxclicks.ai` (recommended, most discoverable) vs `api.maxclicks.ai`. server-card.json is served by the MCP host regardless.
 - Tool granularity: 1:1 with the API (listed above) vs a smaller consolidated set. Start 1:1, consolidate if the tool list feels noisy in practice.
-- Whether to keep the legacy `/{key}/mcp` URL-path auth for hosted clients that cannot set headers.

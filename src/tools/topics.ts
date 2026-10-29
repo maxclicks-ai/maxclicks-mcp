@@ -6,7 +6,7 @@ import { limitField, offsetField } from './shared.js';
 
 const idField = z.string().describe('The topic id.');
 
-export function registerTopicTools(server: McpServer, client: Maxclicks): void {
+export function registerTopicTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_topics',
     {
@@ -14,7 +14,7 @@ export function registerTopicTools(server: McpServer, client: Maxclicks): void {
       description: 'List the space communication topics. Paginated.',
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.topics.list(args)))
+    (args) => runTool(async () => pageResult(await client().topics.list(args)))
   );
 
   server.registerTool(
@@ -24,6 +24,6 @@ export function registerTopicTools(server: McpServer, client: Maxclicks): void {
       description: 'Fetch a communication topic by id.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.topics.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().topics.get(args.id)))
   );
 }

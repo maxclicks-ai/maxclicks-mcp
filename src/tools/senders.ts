@@ -3,7 +3,7 @@ import type { Maxclicks } from 'maxclicks';
 import { pageResult, runTool } from './helpers.js';
 import { limitField, offsetField } from './shared.js';
 
-export function registerSenderTools(server: McpServer, client: Maxclicks): void {
+export function registerSenderTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_senders',
     {
@@ -11,6 +11,6 @@ export function registerSenderTools(server: McpServer, client: Maxclicks): void 
       description: "List the space's saved sender profiles. Paginated.",
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.senders.list(args)))
+    (args) => runTool(async () => pageResult(await client().senders.list(args)))
   );
 }

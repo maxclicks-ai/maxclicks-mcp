@@ -6,7 +6,7 @@ import { limitField, offsetField } from './shared.js';
 
 const idField = z.string().describe('The domain id.');
 
-export function registerDomainTools(server: McpServer, client: Maxclicks): void {
+export function registerDomainTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_domains',
     {
@@ -15,7 +15,7 @@ export function registerDomainTools(server: McpServer, client: Maxclicks): void 
         'List the space sending domains, newest first. Items omit DNS records; call get_domain for the DNS records.',
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.domains.list(args)))
+    (args) => runTool(async () => pageResult(await client().domains.list(args)))
   );
 
   server.registerTool(
@@ -25,6 +25,6 @@ export function registerDomainTools(server: McpServer, client: Maxclicks): void 
       description: 'Fetch a domain by id, including its live-checked DNS records.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.domains.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().domains.get(args.id)))
   );
 }

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import type { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import type { Maxclicks } from 'maxclicks';
 import { z } from 'zod';
@@ -6,7 +7,7 @@ import { limitField, offsetField } from './shared.js';
 
 const idField = z.string().describe('The template id.');
 
-export function registerTemplateTools(server: McpServer, client: Maxclicks): void {
+export function registerTemplateTools(server: McpServer, client: () => Maxclicks): void {
   server.registerTool(
     'list_templates',
     {
@@ -14,7 +15,7 @@ export function registerTemplateTools(server: McpServer, client: Maxclicks): voi
       description: 'List the space stored message templates, newest first.',
       inputSchema: { limit: limitField, offset: offsetField },
     },
-    (args) => runTool(async () => pageResult(await client.templates.list(args)))
+    (args) => runTool(async () => pageResult(await client().templates.list(args)))
   );
 
   server.registerTool(
@@ -25,7 +26,7 @@ export function registerTemplateTools(server: McpServer, client: Maxclicks): voi
         'Fetch a template by id, including its content, sender, recipient path, and expected data representation.',
       inputSchema: { id: idField },
     },
-    (args) => runTool(async () => jsonResult(await client.templates.get(args.id)))
+    (args) => runTool(async () => jsonResult(await client().templates.get(args.id)))
   );
 
   server.registerTool(
@@ -39,11 +40,23 @@ export function registerTemplateTools(server: McpServer, client: Maxclicks): voi
         data: z
           .record(z.unknown())
           .describe('Template data payload, keyed by the template data-representation properties.'),
+        idempotencyKey: z
+          .string()
+          .optional()
+          .describe(
+            'Identifies this send. To retry a send that failed or timed out, pass the idempotencyKey the earlier call returned, so the email is not sent twice. Omit it for a new send.'
+          ),
       },
     },
     (args) =>
-      runTool(async () =>
-        jsonResult(await client.templates.send(args.templateId, { data: args.data }))
-      )
+      runTool(async () => {
+        const idempotencyKey = args.idempotencyKey ?? randomUUID();
+        const result = await client().templates.send(
+          args.templateId,
+          { data: args.data },
+          { idempotencyKey }
+        );
+        return jsonResult({ idempotencyKey, ...result });
+      })
   );
 }

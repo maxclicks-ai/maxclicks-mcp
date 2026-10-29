@@ -15,7 +15,7 @@ import { registerTopicTools } from './topics.js';
 import { registerWebhookTools } from './webhooks.js';
 import { registerWorkflowTools } from './workflows.js';
 
-export function registerAllTools(server: McpServer, client: Maxclicks): void {
+export function registerAllTools(server: McpServer, client: () => Maxclicks): void {
   registerMetaTools(server, client);
   registerSchemaTools(server, client);
   registerAttributeTools(server, client);
